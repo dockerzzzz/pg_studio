@@ -51,6 +51,10 @@ public final class AppFrame extends JFrame {
         aiToggle.addActionListener(e -> setAiVisible(aiToggle.isSelected()));
         JToolBar top = new JToolBar();
         top.setFloatable(false);
+        JButton newConsole = new JButton("＋ 새 콘솔");
+        newConsole.setToolTipText("현재 콘솔(또는 선택한 접속)의 연결로 새 콘솔 열기 (Cmd/Ctrl+T)");
+        newConsole.addActionListener(e -> newConsole());
+        top.add(newConsole);
         top.add(Box.createHorizontalGlue());
         top.add(aiToggle);
         add(top, BorderLayout.NORTH);
@@ -81,7 +85,7 @@ public final class AppFrame extends JFrame {
         JMenuBar bar = new JMenuBar();
         JMenu file = new JMenu("File");
         file.add(item("새 접속…", KeyStroke.getKeyStroke(KeyEvent.VK_N, MOD | java.awt.event.InputEvent.SHIFT_DOWN_MASK), navigator::newConnection));
-        file.add(item("새 콘솔", KeyStroke.getKeyStroke(KeyEvent.VK_T, MOD), () -> openConsole(defaultSession(), null, null, "", false)));
+        file.add(item("새 콘솔", KeyStroke.getKeyStroke(KeyEvent.VK_T, MOD), this::newConsole));
         file.add(item("SQL 파일 열기…", KeyStroke.getKeyStroke(KeyEvent.VK_O, MOD), this::openSqlFile));
         file.add(item("저장", KeyStroke.getKeyStroke(KeyEvent.VK_S, MOD), () -> {
             if (consoles.getSelectedComponent() instanceof ConsoleTab c) c.save();
@@ -171,6 +175,13 @@ public final class AppFrame extends JFrame {
                 "콘솔 닫기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) return;
         tab.dispose();
         consoles.remove(tab);
+    }
+
+    /** 새 콘솔: 지금 보고 있는 콘솔의 연결을 이어받고, 콘솔이 없으면 선택한 접속/유일한 연결, 그것도 없으면 연결 없는 콘솔. */
+    private void newConsole() {
+        Session s = activeSession();
+        String schema = consoles.getSelectedComponent() instanceof ConsoleTab c && c.session() == s ? c.schema() : null;
+        openConsole(s, null, schema, "", false);
     }
 
     /** 대화상자 없이 쓸 기본 연결: 선택된 노드의 연결, 없으면 연결이 하나뿐일 때 그것, 아니면 null(연결 없는 콘솔). */

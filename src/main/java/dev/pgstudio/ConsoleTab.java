@@ -550,6 +550,9 @@ final class ConsoleTab extends JPanel {
 
     Session session() { return session; }
 
+    /** 이 콘솔의 기본 스키마(없으면 null). */
+    String schema() { return schema; }
+
     /** AI 컨텍스트용: 선택 영역이 있으면 그것, 없으면 에디터 전체. */
     String contextSql() {
         String sel = editor.getSelectedText();
