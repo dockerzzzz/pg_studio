@@ -15,6 +15,24 @@ Java 21 · Swing · FlatLaf · RSyntaxTextArea · pgjdbc
 - 접속 › 스키마 › 테이블 / 뷰 / 머티리얼라이즈드 뷰 / 시퀀스 / 함수 › 컬럼(PK 표시)·인덱스 (지연 로딩)
 - 우클릭: Select top 100, 행 수 세기, DDL 보기, 이름 복사, 새로고침
 
+**ERD (스키마 우클릭 › ERD 보기)**
+- 선택한 스키마의 테이블을 다이어그램으로 보여줍니다: 테이블 박스(컬럼, 타입, PK/FK 표시), 까마귀발 표기의 관계선, 자동 배치
+- 관계선 모양: **실선** = 식별 관계(FK가 자식 PK의 일부), **점선** = 비식별 관계, **흐린 점선** = FK 제약은 없지만 이름으로 짐작되는 추정 관계(`customer_id → customers.id` 등, `fk?` 배지). 툴바에서 추정 관계를 끌 수 있습니다.
+- 다른 스키마를 참조하는 FK는 참조 대상을 회색 헤더의 테이블로 함께 표시하고, 파티션 자식 테이블은 제외합니다.
+- 박스 드래그 이동, 배경 드래그/휠 스크롤, Ctrl/Cmd+휠 확대·축소, 클릭 시 관계 강조, 더블클릭 시 해당 테이블 `select top 100`, 테이블 찾기, 컬럼 표시 수준(전체/PK·FK만/테이블명만), PNG 저장
+- 추정 관계는 이름 기반 휴리스틱이라 틀릴 수 있습니다(부모 PK가 단일 컬럼일 때만, 같은 스키마 안에서만 추정).
+
+![ERD 샘플](docs/erd-sample-light.png)
+
+<details>
+<summary>다크 테마 / 테이블 선택(관계 강조) 샘플</summary>
+
+![ERD 다크](docs/erd-sample-dark.png)
+
+![ERD 선택](docs/erd-sample-selected.png)
+
+</details>
+
 **SQL 콘솔**
 - 콘솔 탭마다 독립된 JDBC 연결과 트랜잭션 (DB 연결 없이도 열어서 작성/포맷 가능)
 - 커서 위치의 문장 / 선택 영역 / 전체 스크립트 실행 (따옴표·주석·`$$` 블록을 인식하는 문장 분리)
@@ -109,6 +127,7 @@ macOS에서 개발·확인했습니다. Windows/Linux는 실행해 보지 않았
 |---|---|
 | `PGSTUDIO_TEST_URL` | Postgres 통합 테스트 (접속, DDL 생성, 트랜잭션, 읽기 전용, 그리드 수정, 프로필 저장) |
 | `PGSTUDIO_CLAUDE_SMOKE=1` | 실제 `claude` CLI 왕복 테스트 (중립적인 프롬프트로 실제 API를 호출합니다) |
+| `PGSTUDIO_ERD_SAMPLE_DIR` | ERD 샘플 이미지 생성 (`PGSTUDIO_TEST_URL` 필요, `demo` 스키마를 읽음) |
 
 Jira 테스트는 JDK 내장 `HttpServer`로 만든 가짜 Jira 서버를 사용하므로 실제 계정이 필요 없습니다. 테스트는 `user.home`을 `build/test-home`으로 격리해서 실제 `~/.pgstudio`를 건드리지 않습니다.
 
@@ -145,10 +164,11 @@ insert into shop.orders(customer_id,total,tags) values (1,150.5,'{a,b}'),(2,20,n
 | `ConsoleTab`, `SqlSplitter`, `SqlFormatter`, `History`, `HistoryDialog`, `SearchSupport` | SQL 콘솔과 에디터 기능 |
 | `ResultPanel`, `ResultData`, `GridEdit` | 결과 그리드와 그리드 수정 |
 | `Ddl` | `pg_catalog` 기반 DDL 생성 |
+| `ErdPanel`, `ErdCanvas`, `ErdModel`, `ErdLayout`, `ErdInference` | ERD 탭 (읽기, 자동 배치, 관계 추정, 그리기) |
 | `AiPanel`, `ClaudeCli`, `ChatParser`, `ReadOnlySql`, `SensitiveData` | Claude 탭 |
 | `JiraPanel`, `JiraClient`, `JiraSettings`, `Browser` | Jira 탭 |
 | `Fonts`, `Shortcuts` | 공통 유틸 |
 
 ## 아직 없는 기능
 
-ER 다이어그램, SSH 터널, 별칭 기반 자동완성(`u.` 입력 시 `u`가 가리키는 테이블 컬럼), 비밀번호의 OS 키체인 저장.
+ERD 박스 위치 저장, SSH 터널, 별칭 기반 자동완성(`u.` 입력 시 `u`가 가리키는 테이블 컬럼), 비밀번호의 OS 키체인 저장.

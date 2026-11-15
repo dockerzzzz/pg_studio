@@ -380,6 +380,7 @@ final class Navigator extends JPanel {
                 item(m, "삭제", () -> removeConnection(node));
             }
             case SCHEMA -> {
+                item(m, "ERD 보기", () -> app.openErd(d.session, d.schema));
                 item(m, "이 스키마로 새 콘솔", () -> app.openConsole(d.session, d.schema, d.schema, "", false));
                 item(m, "새로고침", () -> refresh(node));
             }

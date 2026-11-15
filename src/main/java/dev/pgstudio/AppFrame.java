@@ -170,6 +170,26 @@ public final class AppFrame extends JFrame {
         if (run) tab.runNow();
     }
 
+    /** 스키마 ERD 를 새 탭으로 연다. 테이블 더블클릭은 해당 테이블 select top 100 콘솔을 연다. */
+    void openErd(Session s, String schema) {
+        ErdPanel panel = new ErdPanel(s, schema, t ->
+                openConsole(s, t.name, t.schema, "select * from " + Ddl.qualified(t.schema, t.name) + " limit 100;", true));
+        consoles.addTab(null, panel);
+        int idx = consoles.indexOfComponent(panel);
+        JLabel label = new JLabel("ERD · " + schema);
+        JButton close = new JButton("×");
+        close.setBorderPainted(false);
+        close.setContentAreaFilled(false);
+        close.setFocusable(false);
+        close.addActionListener(e -> consoles.remove(panel));
+        JPanel head = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        head.setOpaque(false);
+        head.add(label);
+        head.add(close);
+        consoles.setTabComponentAt(idx, head);
+        consoles.setSelectedComponent(panel);
+    }
+
     private void closeTab(ConsoleTab tab) {
         if (tab.hasPendingTx() && JOptionPane.showConfirmDialog(this, "커밋되지 않은 트랜잭션이 있습니다. 닫으면 롤백됩니다.\n닫을까요?",
                 "콘솔 닫기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) return;

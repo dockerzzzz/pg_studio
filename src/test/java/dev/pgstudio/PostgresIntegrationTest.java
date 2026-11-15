@@ -184,4 +184,104 @@ class PostgresIntegrationTest {
             assertEquals(0, rs.getInt(1), "거부된 쓰기가 반영되면 안 됨");
         }
     }
+
+    // ---- 실행 중 쿼리 취소 ----
+
+    private static <C extends java.awt.Component> C findIn(java.awt.Container root, Class<C> type, java.util.function.Predicate<C> pred) {
+        for (java.awt.Component c : root.getComponents()) {
+            if (type.isInstance(c) && pred.test(type.cast(c))) return type.cast(c);
+            if (c instanceof java.awt.Container k) { C r = findIn(k, type, pred); if (r != null) return r; }
+        }
+        return null;
+    }
+
+    @Test void cancelButtonStopsLongRunningQuery() throws Exception {
+        Session s = Session.connect(profile(), "");
+        try {
+            ConsoleTab tab = new ConsoleTab(s, null, "select pg_sleep(60);");
+            var run = ConsoleTab.class.getDeclaredMethod("runScript");
+            run.setAccessible(true);
+            javax.swing.SwingUtilities.invokeAndWait(() -> { try { run.invoke(tab); } catch (Exception e) { throw new RuntimeException(e); } });
+            javax.swing.JButton cancel = findIn(tab, javax.swing.JButton.class, b -> b.getText().contains("취소"));
+            javax.swing.JButton runBtn = findIn(tab, javax.swing.JButton.class, b -> b.getText().contains("실행") && !b.getText().contains("스크립트"));
+            assertTrue(cancel.isEnabled(), "실행 중에는 취소 버튼이 활성");
+            assertFalse(runBtn.isEnabled(), "실행 중에는 실행 버튼이 비활성");
+
+            // 서버에서 실제로 sleep 중인지 확인
+            try (Connection c = Session.open(profile(), ""); Statement st = c.createStatement()) {
+                int active = 0;
+                for (int i = 0; i < 50 && active == 0; i++) {
+                    Thread.sleep(100);
+                    try (ResultSet rs = st.executeQuery("select count(*) from pg_stat_activity where query like 'select pg_sleep(60)%' and state = 'active' and pid <> pg_backend_pid()")) {
+                        rs.next();
+                        active = rs.getInt(1);
+                    }
+                }
+                assertEquals(1, active, "서버에서 쿼리가 실행 중이어야 함");
+
+                long t0 = System.currentTimeMillis();
+                javax.swing.SwingUtilities.invokeAndWait(cancel::doClick);
+                javax.swing.JTextArea out = findIn(tab, javax.swing.JTextArea.class, a -> !(a instanceof org.fife.ui.rsyntaxtextarea.RSyntaxTextArea));
+                for (int i = 0; i < 100 && !out.getText().contains("✖"); i++) { Thread.sleep(100); javax.swing.SwingUtilities.invokeAndWait(() -> {}); }
+                long ms = System.currentTimeMillis() - t0;
+
+                assertTrue(out.getText().contains("✖"), "취소되면 Output 에 오류로 표시: " + out.getText());
+                assertTrue(out.getText().toLowerCase().contains("cancel"), out.getText());
+                assertTrue(ms < 8000, "60초 쿼리가 몇 초 안에 멈춰야 함: " + ms + "ms");
+                assertTrue(runBtn.isEnabled() && !cancel.isEnabled(), "취소 후 버튼 상태 복원");
+                try (ResultSet rs = st.executeQuery("select count(*) from pg_stat_activity where query like 'select pg_sleep(60)%' and state = 'active' and pid <> pg_backend_pid()")) {
+                    rs.next();
+                    assertEquals(0, rs.getInt(1), "서버에서도 쿼리가 끝나야 함");
+                }
+            }
+            tab.dispose();
+        } finally { s.close(); }
+    }
+
+    // ---- ERD 모델 (실제 카탈로그) ----
+
+    @Test void erdModelReadsDeclaredInferredExternalAndSkipsPartitions() throws Exception {
+        Session s = Session.connect(profile(), "");
+        try (Connection c = s.newConnection(); Statement st = c.createStatement()) {
+            st.execute("drop schema if exists erd_t cascade");
+            st.execute("drop schema if exists erd_u cascade");
+            st.execute("create schema erd_u");
+            st.execute("create schema erd_t");
+            st.execute("create table erd_u.u (id int primary key, extra text)");
+            st.execute("create table erd_t.p (id int primary key, name text)");
+            st.execute("create table erd_t.c_ident (p_id int not null references erd_t.p(id), n int not null, primary key (p_id, n))");
+            st.execute("create table erd_t.c_non (id int primary key, p_id int references erd_t.p(id))");
+            st.execute("create table erd_t.logical (id int primary key, p_id int)");
+            st.execute("create table erd_t.ext_child (id int primary key, u_id int references erd_u.u(id))");
+            st.execute("create table erd_t.part (id int, d date, primary key (id, d)) partition by range (d)");
+            st.execute("create table erd_t.part_1 partition of erd_t.part for values from ('2024-01-01') to ('2025-01-01')");
+
+            ErdModel m = ErdModel.load(s.meta, "erd_t");
+            Map<String, ErdModel.Table> byName = new java.util.HashMap<>();
+            m.tables.values().forEach(t -> byName.put(t.name, t));
+
+            assertTrue(byName.containsKey("part") && !byName.containsKey("part_1"), "파티션 자식은 제외");
+            assertEquals(java.util.Set.of("p_id", "n"), byName.get("c_ident").pk);
+            assertTrue(byName.get("c_ident").fk.contains("p_id"));
+
+            ErdModel.Fk ident = m.fks.stream().filter(f -> f.childCols().equals(List.of("p_id")) && !f.inferred() && byName.get("c_ident").oid == f.child()).findFirst().get();
+            assertTrue(ident.identifying(), "FK 컬럼이 PK 의 일부 → 식별 관계");
+            ErdModel.Fk non = m.fks.stream().filter(f -> byName.get("c_non").oid == f.child() && !f.inferred()).findFirst().get();
+            assertFalse(non.identifying(), "PK 가 아닌 FK → 비식별 관계");
+            ErdModel.Fk logical = m.fks.stream().filter(f -> byName.get("logical").oid == f.child()).findFirst().get();
+            assertTrue(logical.inferred(), "FK 제약이 없으면 추정 관계");
+            assertEquals(byName.get("p").oid, logical.parent());
+            assertTrue(byName.get("logical").inferred.contains("p_id"));
+
+            ErdModel.Table ext = byName.get("u");
+            assertNotNull(ext, "다른 스키마의 참조 대상은 external 로 포함");
+            assertTrue(ext.external);
+            assertEquals("erd_u", ext.schema);
+            assertEquals(List.of("id"), ext.columns.stream().map(ErdModel.Column::name).toList(), "external 은 PK/참조 컬럼만");
+            assertEquals(java.util.Set.of("id"), ext.pk);
+            assertEquals(1, m.fks.stream().filter(f -> byName.get("ext_child").oid == f.child()).count());
+            st.execute("drop schema erd_t cascade");
+            st.execute("drop schema erd_u cascade");
+        } finally { s.close(); }
+    }
 }
