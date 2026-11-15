@@ -77,15 +77,19 @@ public final class ProfileStore {
             if (pw != null) p.setProperty(k + "password", pw);
         }
         p.setProperty("ids", ids.toString());
+        writeSecure(FILE, p, "PG Studio connections");
+    }
+
+    /** 비밀번호/토큰이 들어갈 수 있으므로 먼저 600 권한으로 만든 뒤 내용을 쓴다(POSIX 환경). */
+    static void writeSecure(Path file, Properties p, String comment) {
         try {
             Files.createDirectories(DIR);
-            // 비밀번호가 들어갈 수 있으므로 먼저 600 권한으로 만든 뒤 내용을 쓴다.
             try {
-                if (!Files.exists(FILE))
-                    Files.createFile(FILE, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
-                else Files.setPosixFilePermissions(FILE, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
+                if (!Files.exists(file))
+                    Files.createFile(file, PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+                else Files.setPosixFilePermissions(file, Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE));
             } catch (UnsupportedOperationException ignored) {}
-            try (OutputStream out = Files.newOutputStream(FILE)) { p.store(out, "PG Studio connections"); }
+            try (OutputStream out = Files.newOutputStream(file)) { p.store(out, comment); }
         } catch (IOException ignored) {}
     }
 }

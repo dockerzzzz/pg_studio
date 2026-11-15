@@ -170,16 +170,8 @@ final class AiPanel extends JPanel {
                 editorSql = t.length() > EDITOR_CHARS ? t.substring(0, EDITOR_CHARS) + "\n-- ... (생략됨)" : t;
             }
         }
-        String exe = ClaudeCli.resolve();
-        if (exe == null) {
-            JFileChooser fc = new JFileChooser();
-            fc.setDialogTitle("claude 실행 파일을 선택하세요");
-            if (fc.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) { addText("오류", "claude CLI를 찾지 못했습니다.", true); return; }
-            File f = fc.getSelectedFile();
-            if (!f.canExecute()) { addText("오류", "실행할 수 없는 파일입니다: " + f, true); return; }
-            Main.setClaudePath(f.getAbsolutePath());
-            exe = f.getAbsolutePath();
-        }
+        String exe = ClaudeCli.resolveInteractive(this);
+        if (exe == null) { addText("오류", "claude CLI를 찾지 못했습니다.", true); return; }
         Session s = host.currentSession();
         boolean withSchema = schemaBox.isSelected() && s != null;
         if (!consented) {

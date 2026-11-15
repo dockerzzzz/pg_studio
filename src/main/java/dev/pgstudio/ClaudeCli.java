@@ -1,5 +1,8 @@
 package dev.pgstudio;
 
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+import java.awt.Component;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -131,10 +134,28 @@ final class ClaudeCli {
         }
     }
 
-    static Handle start(String exe, String stdinPrompt) throws IOException {
+    static Handle start(String exe, String stdinPrompt) throws IOException { return start(command(exe), stdinPrompt); }
+
+    /** 경로를 찾고, 못 찾으면 파일 선택창으로 물어 저장한다. 취소/실패하면 null. EDT 에서 호출. */
+    static String resolveInteractive(Component parent) {
+        String exe = resolve();
+        if (exe != null) return exe;
+        JFileChooser fc = new JFileChooser();
+        fc.setDialogTitle("claude 실행 파일을 선택하세요");
+        if (fc.showOpenDialog(parent) != JFileChooser.APPROVE_OPTION) return null;
+        File f = fc.getSelectedFile();
+        if (!f.canExecute()) {
+            JOptionPane.showMessageDialog(parent, "실행할 수 없는 파일입니다: " + f);
+            return null;
+        }
+        Main.setClaudePath(f.getAbsolutePath());
+        return f.getAbsolutePath();
+    }
+
+    static Handle start(List<String> command, String stdinPrompt) throws IOException {
         Path cwd = Files.createTempDirectory("pgstudio-claude-");
         Path err = Files.createTempFile(cwd, "stderr", ".txt");
-        ProcessBuilder pb = new ProcessBuilder(command(exe)).directory(cwd.toFile()).redirectError(err.toFile());
+        ProcessBuilder pb = new ProcessBuilder(command).directory(cwd.toFile()).redirectError(err.toFile());
         String extra = String.join(File.pathSeparator, candidateDirs().stream().map(Path::toString).toList());
         pb.environment().merge("PATH", extra, (old, add) -> old + File.pathSeparator + add);
         Process p = pb.start();

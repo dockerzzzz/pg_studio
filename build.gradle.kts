@@ -11,6 +11,7 @@ dependencies {
     implementation("com.fifesoft:autocomplete:3.3.2")
     implementation("com.fifesoft:rstaui:3.3.1")
     implementation("org.postgresql:postgresql:42.7.4")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     testImplementation(platform("org.junit:junit-bom:5.11.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")

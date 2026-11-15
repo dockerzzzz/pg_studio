@@ -18,7 +18,9 @@ public final class AppFrame extends JFrame {
     private int counter;
     private final JPanel centerHolder = new JPanel(new BorderLayout());
     private final JSplitPane aiSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-    private final JToggleButton aiToggle = new JToggleButton("✦ Claude");
+    private final JToggleButton aiToggle = new JToggleButton("✦ Claude · Jira");
+    private final JTabbedPane rightTabs = new JTabbedPane();
+    private final JiraPanel jira = new JiraPanel();
     private final AiPanel ai = new AiPanel(new AiPanel.Host() {
         @Override public Session currentSession() { return AppFrame.this.activeSession(); }
         @Override public void insertIntoEditor(String sql) { AppFrame.this.insertIntoEditor(sql); }
@@ -42,7 +44,10 @@ public final class AppFrame extends JFrame {
         split.setDividerLocation(300);
         aiSplit.setResizeWeight(1.0);
         aiSplit.setContinuousLayout(true);
-        aiToggle.setToolTipText("Claude 패널 열기/닫기 (Cmd/Ctrl+Shift+J)");
+        rightTabs.addTab("✦ Claude", ai);
+        rightTabs.addTab("Jira", jira);
+        rightTabs.addChangeListener(e -> { if (rightTabs.getSelectedComponent() == jira) jira.onShown(); });
+        aiToggle.setToolTipText("Claude / Jira 패널 열기/닫기 (Cmd/Ctrl+Shift+J)");
         aiToggle.addActionListener(e -> setAiVisible(aiToggle.isSelected()));
         JToolBar top = new JToolBar();
         top.setFloatable(false);
@@ -87,7 +92,7 @@ public final class AppFrame extends JFrame {
         bar.add(file);
 
         JMenu view = new JMenu("View");
-        view.add(item("Claude 패널 열기/닫기", KeyStroke.getKeyStroke(KeyEvent.VK_J, MOD | java.awt.event.InputEvent.SHIFT_DOWN_MASK),
+        view.add(item("Claude/Jira 패널 열기/닫기", KeyStroke.getKeyStroke(KeyEvent.VK_J, MOD | java.awt.event.InputEvent.SHIFT_DOWN_MASK),
                 () -> setAiVisible(!aiToggle.isSelected())));
         view.add(item("다크/라이트 전환", null, this::toggleTheme));
         bar.add(view);
@@ -192,11 +197,11 @@ public final class AppFrame extends JFrame {
         centerHolder.removeAll();
         if (show) {
             aiSplit.setLeftComponent(consoles);
-            aiSplit.setRightComponent(ai);
+            aiSplit.setRightComponent(rightTabs);
             centerHolder.add(aiSplit, BorderLayout.CENTER);
             SwingUtilities.invokeLater(() -> {
                 aiSplit.setDividerLocation(Math.max(300, aiSplit.getWidth() - 440));
-                ai.focusInput();
+                if (rightTabs.getSelectedComponent() == ai) ai.focusInput(); else jira.onShown();
             });
         } else centerHolder.add(consoles, BorderLayout.CENTER);
         centerHolder.revalidate();

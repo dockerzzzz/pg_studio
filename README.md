@@ -1,6 +1,6 @@
 # PG Studio
 
-PostgreSQL 전용 데스크톱 SQL 클라이언트입니다. JDBC로 접속하며, DataGrip과 비슷한 탐색기·SQL 콘솔·결과 그리드를 제공하고, 우측 패널에서 로컬 `claude` CLI로 쿼리 작성을 도와줍니다.
+PostgreSQL 전용 데스크톱 SQL 클라이언트입니다. JDBC로 접속하며, DataGrip과 비슷한 탐색기·SQL 콘솔·결과 그리드를 제공하고, 우측 패널에서 로컬 `claude` CLI로 쿼리 작성을 도와주며 내 Jira 미해결 이슈 목록을 보여줍니다.
 
 Java 21 · Swing · FlatLaf · RSyntaxTextArea · pgjdbc
 
@@ -31,17 +31,24 @@ Java 21 · Swing · FlatLaf · RSyntaxTextArea · pgjdbc
   - 한 번의 적용은 세이브포인트로 묶여 중간에 실패하면 이번 적용분만 롤백됩니다. 수정/삭제가 정확히 1행에 영향을 주지 않으면 중단합니다.
   - 조인, 수식 컬럼, PK 미포함 결과, 읽기 전용 접속은 수정할 수 없습니다.
 
-**Claude 패널 (우측, 열기/닫기: Cmd/Ctrl+Shift+J)**
+**우측 패널 (Claude · Jira 탭, 열기/닫기: Cmd/Ctrl+Shift+J)**
+
+*Claude 탭*
 - 로컬 `claude` CLI(비대화형 `-p` 모드)로 질문하면 PostgreSQL 쿼리를 작성해 줍니다.
 - 현재 에디터의 SQL(선택 영역 우선)과 스키마(테이블/컬럼 이름)를 함께 보고 답합니다. 각각 체크박스로 끌 수 있습니다.
 - 제안된 쿼리는 **삽입** / **에디터 교체**(Cmd/Ctrl+Z로 되돌리기) / **복사** / **▶ 실행 (SELECT)** 버튼으로 사용합니다.
 - 입력창: Enter 전송, Shift+Enter 줄바꿈
 
+*Jira 탭*
+- Jira Cloud(REST API v3)의 **내게 할당된 미해결 이슈** 목록을 `업무(이슈 키 + 제목) · 담당자 · 보고자`로 보여줍니다. 기본 JQL은 `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`이며, 탭 상단에서 JQL을 직접 수정하고 Enter로 조회할 수 있습니다(마지막 JQL은 기억).
+- 이슈 키(파란 링크)를 클릭하거나 행을 더블클릭하면 기본 브라우저에서 열립니다. 우클릭으로 키 복사도 가능합니다.
+- 설정 버튼에서 Jira 주소(`https://…`), 이메일, API 토큰을 입력합니다. 토큰은 입력한 Jira 주소로만 전송됩니다.
+
 ## 요구 사항
 
 - JDK 21 (빌드 설정이 Java 21 toolchain을 요구하며 자동 다운로드는 설정되어 있지 않습니다)
 - Gradle은 별도 설치가 필요 없습니다 (Gradle wrapper 포함)
-- Claude 패널을 쓰려면 `claude` CLI가 설치되고 로그인되어 있어야 합니다. PATH와 일반 설치 위치에서 자동으로 찾고, 못 찾으면 파일 선택창이 뜹니다.
+- Claude 탭을 쓰려면 `claude` CLI가 설치되고 로그인되어 있어야 합니다. PATH와 일반 설치 위치에서 자동으로 찾고, 못 찾으면 파일 선택창이 뜹니다.
 
 ## 실행
 
@@ -70,24 +77,25 @@ macOS에서 개발·확인했습니다. Windows/Linux는 실행해 보지 않았
 | Cmd/Ctrl+T | 새 콘솔 |
 | Cmd/Ctrl+S | SQL 파일 저장 |
 | Cmd/Ctrl+Shift+H | 쿼리 이력 |
-| Cmd/Ctrl+Shift+J | Claude 패널 열기/닫기 |
+| Cmd/Ctrl+Shift+J | 우측 패널(Claude/Jira) 열기/닫기 |
 
 ## 저장되는 데이터
 
 | 위치 | 내용 |
 |---|---|
 | `~/.pgstudio/connections.properties` | 접속 프로필. "비밀번호 저장"을 선택한 접속만 비밀번호가 평문으로 들어갑니다. POSIX 환경에서는 파일 권한이 600입니다. |
+| `~/.pgstudio/jira.properties` | Jira 주소, 이메일, JQL. "토큰 저장"을 선택한 경우에만 API 토큰이 평문으로 들어갑니다(POSIX에서 권한 600). |
 | `~/.pgstudio/history.tsv` | 실행한 쿼리 이력 |
 | Java Preferences | 테마, 글꼴 크기, Claude 패널 열림 여부, claude 실행 파일 경로 |
 
 ## 보안 참고
 
-- **비밀번호 저장은 평문입니다.** 테스트용 DB에서만 쓰세요. Windows에서는 파일 권한 보호가 적용되지 않습니다. 접속 정보 파일을 공유하거나 커밋하지 마세요.
-- **Claude 패널은 외부로 데이터를 보냅니다.** 질문, 대화 맥락, (선택 시) 스키마 이름과 에디터 SQL이 로컬 `claude` CLI를 통해 Anthropic으로 전송됩니다. 쿼리 결과 데이터는 보내지 않습니다.
+- **비밀번호/토큰 저장은 평문입니다.** DB 비밀번호와 Jira API 토큰의 "저장" 옵션은 테스트 용도로만 쓰세요. Windows에서는 파일 권한 보호가 적용되지 않습니다. 접속 정보 파일을 공유하거나 커밋하지 마세요.
+- **Claude 탭은 외부로 데이터를 보냅니다.** 질문, 대화 맥락, (선택 시) 스키마 이름과 에디터 SQL이 로컬 `claude` CLI를 통해 Anthropic으로 전송됩니다. 쿼리 결과 데이터는 보내지 않습니다.
   - 앱을 켠 뒤 처음 보낼 때 확인창이 뜹니다.
   - 주민등록번호, 카드번호, 비밀번호·토큰·API 키로 보이는 문자열이 질문이나 에디터 SQL에 있으면 전송하지 않습니다. 패턴 기반의 보조 검사이므로 모든 경우를 잡지는 못합니다.
   - CLI는 모든 도구와 MCP를 끄고 세션을 저장하지 않으며 빈 임시 폴더에서 실행합니다. 프롬프트는 명령줄 인자가 아니라 stdin으로 전달합니다.
-- **패널의 SELECT 실행은 서버가 강제하는 읽기 전용 연결**에서 이루어집니다(접속 프로필 설정과 무관). 단일 SELECT(WITH/VALUES/TABLE/SHOW)만 허용하고, 위험한 명령·함수가 들어 있으면 실행 버튼이 비활성화됩니다. 클라이언트 검사는 보조 수단이며, 최종 방어선은 서버의 읽기 전용 설정과 접속 계정 권한입니다. 쿼리당 제한은 30초, 최대 500행입니다.
+- **Claude 탭의 SELECT 실행은 서버가 강제하는 읽기 전용 연결**에서 이루어집니다(접속 프로필 설정과 무관). 단일 SELECT(WITH/VALUES/TABLE/SHOW)만 허용하고, 위험한 명령·함수가 들어 있으면 실행 버튼이 비활성화됩니다. 클라이언트 검사는 보조 수단이며, 최종 방어선은 서버의 읽기 전용 설정과 접속 계정 권한입니다. 쿼리당 제한은 30초, 최대 500행입니다.
 
 ## 테스트
 
@@ -102,7 +110,7 @@ macOS에서 개발·확인했습니다. Windows/Linux는 실행해 보지 않았
 | `PGSTUDIO_TEST_URL` | Postgres 통합 테스트 (접속, DDL 생성, 트랜잭션, 읽기 전용, 그리드 수정, 프로필 저장) |
 | `PGSTUDIO_CLAUDE_SMOKE=1` | 실제 `claude` CLI 왕복 테스트 (중립적인 프롬프트로 실제 API를 호출합니다) |
 
-테스트는 `user.home`을 `build/test-home`으로 격리해서 실제 `~/.pgstudio`를 건드리지 않습니다.
+Jira 테스트는 JDK 내장 `HttpServer`로 만든 가짜 Jira 서버를 사용하므로 실제 계정이 필요 없습니다. 테스트는 `user.home`을 `build/test-home`으로 격리해서 실제 `~/.pgstudio`를 건드리지 않습니다.
 
 **통합 테스트 주의:** 반드시 **일회용 테스트 DB**에서만 실행하세요. 테이블을 만들고 지우며 행을 넣습니다. 비밀번호 없이 접속되는 DB(예: `trust` 인증)와 아래 시드 데이터가 필요합니다.
 
@@ -137,7 +145,8 @@ insert into shop.orders(customer_id,total,tags) values (1,150.5,'{a,b}'),(2,20,n
 | `ConsoleTab`, `SqlSplitter`, `SqlFormatter`, `History`, `HistoryDialog`, `SearchSupport` | SQL 콘솔과 에디터 기능 |
 | `ResultPanel`, `ResultData`, `GridEdit` | 결과 그리드와 그리드 수정 |
 | `Ddl` | `pg_catalog` 기반 DDL 생성 |
-| `AiPanel`, `ClaudeCli`, `ChatParser`, `ReadOnlySql`, `SensitiveData` | Claude 패널 |
+| `AiPanel`, `ClaudeCli`, `ChatParser`, `ReadOnlySql`, `SensitiveData` | Claude 탭 |
+| `JiraPanel`, `JiraClient`, `JiraSettings`, `Browser` | Jira 탭 |
 | `Fonts`, `Shortcuts` | 공통 유틸 |
 
 ## 아직 없는 기능
