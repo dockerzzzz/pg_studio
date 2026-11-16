@@ -3,3 +3,17 @@ build/
 .idea/
 .DS_Store
 *.log
+
+# 인증정보/로컬 설정 (실수로 커밋되지 않도록)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.jks
+connections.properties
+jira.properties
+.pgstudio/
+*.properties
+!gradle/wrapper/gradle-wrapper.properties
+!gradle.properties
