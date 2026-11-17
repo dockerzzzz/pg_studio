@@ -1,4 +1,4 @@
-ㅏpackage dev.pgstudio;
+package dev.pgstudio;
 
 import java.util.ArrayList;
 import java.util.Comparator;
