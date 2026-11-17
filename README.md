@@ -76,6 +76,14 @@ Java 21 · Swing · FlatLaf · RSyntaxTextArea · pgjdbc
 ./gradlew installDist    # build/install/pg-studio/bin/pg-studio 생성
 ```
 
+기본 `java`가 Gradle 래퍼(8.14)가 지원하지 않는 최신 JDK(예: 27)이면 `FAILURE: Build failed with an exception.` 아래에 `27.0.1.0.3` 같은 버전 문자열만 찍히고 실패합니다. 이때는 JDK 21을 지정해서 실행하세요.
+
+```bash
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew run    # macOS
+```
+
+매번 지정하기 번거로우면 `~/.zshrc`에 `export JAVA_HOME=$(/usr/libexec/java_home -v 21)`을 넣어 두세요.
+
 macOS에서 개발·확인했습니다. Windows/Linux는 실행해 보지 않았습니다.
 
 ## 키보드 단축키
