@@ -18,6 +18,8 @@ public final class Main {
     public static void setClaudePath(String p) { PREFS.put("claudePath", p); }
     public static boolean aiPanelVisible() { return PREFS.getBoolean("aiPanel", true); }
     public static void setAiPanelVisible(boolean v) { PREFS.putBoolean("aiPanel", v); }
+    public static boolean aiAutoRun() { return PREFS.getBoolean("aiAutoRun", true); }
+    public static void setAiAutoRun(boolean v) { PREFS.putBoolean("aiAutoRun", v); }
 
     public static void main(String[] args) {
         System.setProperty("apple.laf.useScreenMenuBar", "true");

@@ -66,6 +66,13 @@ final class ResultPanel extends JPanel {
             @Override public void setValueAt(Object v, int r, int c) { setCell(data.rows.get(r), c, v == null ? null : v.toString()); fireTableCellUpdated(r, c); }
         };
         table = new JTable(model) {
+            // FlatLaf 는 기본으로 격자선을 숨기므로, 테마 전환 후에도 다시 켠다
+            @Override public void updateUI() {
+                super.updateUI();
+                setShowGrid(true);
+                Color g = UIManager.getColor("Table.gridColor");
+                if (g != null) setGridColor(g);
+            }
             @Override protected JTableHeader createDefaultTableHeader() {
                 return new JTableHeader(columnModel) {
                     @Override public String getToolTipText(MouseEvent e) {

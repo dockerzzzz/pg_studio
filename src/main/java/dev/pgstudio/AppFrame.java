@@ -24,6 +24,11 @@ public final class AppFrame extends JFrame {
     private final AiPanel ai = new AiPanel(new AiPanel.Host() {
         @Override public Session currentSession() { return AppFrame.this.activeSession(); }
         @Override public void insertIntoEditor(String sql) { AppFrame.this.insertIntoEditor(sql); }
+        @Override public void appendToEditor(String sql) {
+            if (!(AppFrame.this.consoles.getSelectedComponent() instanceof ConsoleTab))
+                AppFrame.this.openConsole(AppFrame.this.activeSession(), null, null, "", false);
+            if (AppFrame.this.consoles.getSelectedComponent() instanceof ConsoleTab c) c.appendSql(sql);
+        }
         @Override public String editorText() {
             return AppFrame.this.consoles.getSelectedComponent() instanceof ConsoleTab c ? c.contextSql() : null;
         }

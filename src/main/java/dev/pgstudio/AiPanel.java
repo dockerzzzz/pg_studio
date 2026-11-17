@@ -28,6 +28,8 @@ final class AiPanel extends JPanel {
     interface Host {
         Session currentSession();
         void insertIntoEditor(String sql);
+        /** 현재 콘솔(없으면 새 콘솔) 에디터 끝에 붙인다. */
+        void appendToEditor(String sql);
         /** 현재 콘솔 에디터의 선택 영역(없으면 전체) 텍스트. 콘솔이 없으면 null. */
         String editorText();
         /** 선택 영역이 있으면 선택 영역, 없으면 에디터 전체를 교체한다(에디터의 Undo 로 되돌릴 수 있음). */
@@ -36,7 +38,7 @@ final class AiPanel extends JPanel {
         void closePanel();
     }
 
-    private static final int MAX_HISTORY = 6, MAX_HISTORY_CHARS = 3000, SCHEMA_CHARS = 15000, EDITOR_CHARS = 8000, ROW_LIMIT = 500;
+    private static final int MAX_HISTORY = 6, MAX_HISTORY_CHARS = 3000, SCHEMA_CHARS = 60000, EDITOR_CHARS = 8000, ROW_LIMIT = 500;
     private static boolean consented;   // 앱 실행 중 첫 전송 때 한 번 확인
 
     private final Host host;
@@ -46,6 +48,7 @@ final class AiPanel extends JPanel {
     private final JButton send = new JButton("전송"), stop = new JButton("중지");
     private final JCheckBox schemaBox = new JCheckBox("스키마(테이블/컬럼명) 포함", true);
     private final JCheckBox editorBox = new JCheckBox("에디터 SQL 포함 (선택 영역 우선)", true);
+    private final JCheckBox autoBox = new JCheckBox("답변 쿼리를 콘솔에 자동 입력 · SELECT는 자동 실행", Main.aiAutoRun());
     private final JLabel target = new JLabel(" ");
     private final List<String[]> history = new ArrayList<>();
     private final List<RSyntaxTextArea> codeAreas = new ArrayList<>();
@@ -98,6 +101,8 @@ final class AiPanel extends JPanel {
         top.add(note);
         top.add(schemaBox);
         top.add(editorBox);
+        top.add(autoBox);
+        autoBox.addActionListener(e -> Main.setAiAutoRun(autoBox.isSelected()));
         top.add(target);
         south.add(top, BorderLayout.NORTH);
         south.add(new JScrollPane(input), BorderLayout.CENTER);
@@ -186,7 +191,8 @@ final class AiPanel extends JPanel {
             if (r != JOptionPane.OK_OPTION) return;
             consented = true;
         }
-        String schema = withSchema ? ClaudeCli.schemaText(s.completion, SCHEMA_CHARS) : null;
+        String schema = withSchema ? ClaudeCli.schemaText(s.completion, SCHEMA_CHARS, q + "\n" + (editorSql == null ? "" : editorSql)) : null;
+        if (schema != null && schema.isBlank()) schema = null;
         List<String[]> recent = new ArrayList<>(history.subList(Math.max(0, history.size() - MAX_HISTORY), history.size()));
         String prompt = ClaudeCli.buildPrompt(schema, editorSql, recent, q);
 
@@ -195,6 +201,7 @@ final class AiPanel extends JPanel {
         List<String> attached = new ArrayList<>();
         if (editorSql != null) attached.add("에디터 SQL " + (int) editorSql.lines().count() + "줄");
         if (schema != null) attached.add("스키마");
+        if (withSchema && schema == null) attached.add(s.ready.isDone() ? "스키마 없음(조회 실패)" : "스키마 없음(아직 로딩 중)");
         if (!attached.isEmpty()) {
             JLabel note = new JLabel("📎 첨부: " + String.join(" · ", attached));
             note.setForeground(Color.GRAY);
@@ -263,9 +270,12 @@ final class AiPanel extends JPanel {
         l.setFont(l.getFont().deriveFont(Font.BOLD));
         l.setForeground(new Color(0xD97757));
         addComponent(l);
+        boolean auto = autoBox.isSelected();   // 첫 번째 SQL 블록만 자동 처리
         for (ChatParser.Segment seg : ChatParser.parse(reply)) {
-            if (seg.code() && (seg.lang().isEmpty() || seg.lang().equals("sql") || seg.lang().equals("postgresql") || seg.lang().equals("pgsql")))
-                addComponent(codeBlock(seg.text()));
+            if (seg.code() && (seg.lang().isEmpty() || seg.lang().equals("sql") || seg.lang().equals("postgresql") || seg.lang().equals("pgsql"))) {
+                addComponent(codeBlock(seg.text(), auto));
+                auto = false;
+            }
             else addComponent(textArea(seg.text(), false));
         }
     }
@@ -281,7 +291,7 @@ final class AiPanel extends JPanel {
         return ta;
     }
 
-    private JComponent codeBlock(String sql) {
+    private JComponent codeBlock(String sql, boolean auto) {
         RSyntaxTextArea ta = new RSyntaxTextArea(sql);
         ta.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SQL);
         ta.setEditable(false);
@@ -316,6 +326,12 @@ final class AiPanel extends JPanel {
         p.add(sp, BorderLayout.CENTER);
         p.add(south, BorderLayout.SOUTH);
         p.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
+        if (auto) {
+            host.appendToEditor(sql);
+            // 실행은 기존 [실행] 버튼과 같은 읽기 전용 연결로만 한다
+            if (why == null) runSelect(sql, run, result);
+            else result.setText("콘솔에 입력됨 · 자동 실행 안 함: " + why);
+        }
         return p;
     }
 

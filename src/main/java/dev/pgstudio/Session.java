@@ -56,7 +56,7 @@ public final class Session implements AutoCloseable {
                 + "join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace "
                 + "where a.attnum > 0 and not a.attisdropped and c.relkind in ('r','p','v','m','f') "
                 + "and n.nspname not like 'pg\\_%' and n.nspname <> 'information_schema' "
-                + "order by 1, 2, a.attnum limit 50000";
+                + "order by 1, 2, a.attnum limit 200000";
         try (Statement st = meta.createStatement(); ResultSet rs = st.executeQuery(q)) {
             while (rs.next())
                 m.computeIfAbsent(rs.getString(1), k -> new TreeMap<>())

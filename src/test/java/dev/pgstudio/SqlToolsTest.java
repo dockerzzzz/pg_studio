@@ -57,6 +57,28 @@ class SqlToolsTest {
         assertTrue(out.contains("coalesce(a, 0)::int"), out);
     }
 
+    @Test void resolvesAliasesFromFromAndJoin() {
+        java.util.Map<String, java.util.Map<String, List<String>>> m = new java.util.TreeMap<>();
+        m.computeIfAbsent("wlt", k -> new java.util.TreeMap<>()).put("wallet", List.of("id", "balance"));
+        m.computeIfAbsent("wlt", k -> new java.util.TreeMap<>()).put("txn", List.of("id", "wallet_id", "amount"));
+        m.computeIfAbsent("public", k -> new java.util.TreeMap<>()).put("member", List.of("id", "name"));
+        String sql = "select w., t.amount from wlt.wallet w\n join wlt.txn as t on t.wallet_id = w.id, member where 1=1";
+
+        assertEquals("wallet", SqlAliases.tableFor("w", sql, m, null).name());
+        assertEquals("txn", SqlAliases.tableFor("T", sql, m, null).name());
+        assertEquals("member", SqlAliases.tableFor("member", sql, m, null).name());
+        assertEquals(List.of("id", "balance"), SqlAliases.tableFor("wlt.wallet", "select ", m, null).columns());
+        assertNull(SqlAliases.tableFor("where", sql, m, null), "키워드는 별칭이 아님");
+        assertNull(SqlAliases.tableFor("x", sql, m, null));
+        assertEquals("txn", SqlAliases.tableFor("\"t\"", "select from wlt.\"txn\" \"t\"", m, null).name());
+    }
+
+    @Test void numericZeroWithScaleIsNotScientific() {
+        java.math.BigDecimal zero = new java.math.BigDecimal("0E-10");
+        assertEquals("0.0000000000", new ConsoleTab.PlainDecimal(zero).toString());
+        assertEquals(0, new ConsoleTab.PlainDecimal(new java.math.BigDecimal("-1000.00")).compareTo(new java.math.BigDecimal("-1000")));
+    }
+
     @Test void historyEscapeRoundTrip() {
         String s = "select 1\n\tfrom \\x";
         assertEquals(s, History.unesc(History.esc(s)));

@@ -9,8 +9,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -53,13 +57,50 @@ final class ClaudeCli {
 
     /** 자동완성 캐시(schema -> table -> columns)에서 스키마 설명 텍스트를 만든다. 너무 크면 잘라낸다. */
     static String schemaText(Map<String, Map<String, List<String>>> completion, int maxChars) {
-        StringBuilder sb = new StringBuilder();
+        return schemaText(completion, maxChars, null);
+    }
+
+    /**
+     * hint(질문·에디터 SQL)에 이름이 나온 테이블, 그다음 이름이 나온 스키마의 테이블을 먼저 넣는다.
+     * 예산을 넘으면 나머지 테이블은 컬럼 없이 이름만 넣는다(알파벳 뒤쪽 스키마가 통째로 빠지지 않도록).
+     */
+    static String schemaText(Map<String, Map<String, List<String>>> completion, int maxChars, String hint) {
+        Set<String> words = new HashSet<>(Arrays.asList(
+                (hint == null ? "" : hint.toLowerCase(Locale.ROOT)).split("[^a-z0-9_$]+")));
+        List<String[]> tables = new ArrayList<>();   // {schema, table, columns, rank}
         for (var s : completion.entrySet())
             for (var t : s.getValue().entrySet()) {
-                String line = s.getKey() + "." + t.getKey() + "(" + String.join(", ", t.getValue()) + ")\n";
-                if (sb.length() + line.length() > maxChars) return sb.append("... (생략됨)\n").toString();
-                sb.append(line);
+                int rank = words.contains(t.getKey().toLowerCase(Locale.ROOT)) ? 0
+                        : words.contains(s.getKey().toLowerCase(Locale.ROOT)) ? 1 : 2;
+                tables.add(new String[]{s.getKey(), t.getKey(), String.join(", ", t.getValue()), String.valueOf(rank)});
             }
+        tables.sort(Comparator.comparing(t -> t[3]));   // 안정 정렬: 같은 순위는 원래(알파벳) 순서 유지
+
+        // 이름만 넣을 테이블 몫으로 예산의 최대 1/3 을 남겨 둔다
+        int namesSize = 0;
+        for (String[] t : tables) namesSize += t[0].length() + t[1].length() + 3;
+        int detailBudget = namesSize + tables.stream().mapToInt(t -> t[2].length() + 3).sum() <= maxChars
+                ? maxChars : maxChars - Math.min(namesSize, maxChars / 3);
+        StringBuilder sb = new StringBuilder();
+        List<String> namesOnly = new ArrayList<>();
+        for (String[] t : tables) {
+            String line = t[0] + "." + t[1] + "(" + t[2] + ")\n";
+            if (namesOnly.isEmpty() && sb.length() + line.length() <= detailBudget) sb.append(line);
+            else namesOnly.add(t[0] + "." + t[1]);
+        }
+        if (namesOnly.isEmpty()) return sb.toString();
+        String head = "Other tables (columns omitted): ";
+        int added = 0;
+        if (sb.length() + head.length() < maxChars) {
+            sb.append(head);
+            for (String n : namesOnly) {
+                if (sb.length() + n.length() + 2 > maxChars) break;
+                sb.append(added++ == 0 ? "" : ", ").append(n);
+            }
+            sb.append("\n");
+        }
+        int omitted = namesOnly.size() - added;
+        if (omitted > 0) sb.append("... (").append(omitted).append("개 테이블 생략됨)\n");
         return sb.toString();
     }
 

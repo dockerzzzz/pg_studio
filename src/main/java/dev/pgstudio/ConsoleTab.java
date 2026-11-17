@@ -13,6 +13,7 @@ import org.postgresql.util.PGobject;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
@@ -49,6 +50,10 @@ final class ConsoleTab extends JPanel {
             commit = new JButton("Commit"), rollback = new JButton("Rollback");
     private final DefaultCompletionProvider provider = new DefaultCompletionProvider() {
         @Override protected boolean isValidChar(char ch) { return super.isValidChar(ch) || ch == '.'; }
+        @Override protected List<Completion> getCompletionsImpl(JTextComponent comp) {
+            List<Completion> cols = aliasCompletions(this, getAlreadyEnteredText(comp));
+            return cols != null ? cols : super.getCompletionsImpl(comp);
+        }
     };
     private final ExecutorService exec = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "console-exec");
@@ -80,8 +85,11 @@ final class ConsoleTab extends JPanel {
         editor.discardAllEdits();
         applyEditorTheme();
 
+        // 기본값은 자동 팝업이 꺼져 있어 Ctrl+Space 로만 열린다
+        provider.setAutoActivationRules(true, ".");
         AutoCompletion ac = new AutoCompletion(provider);
         ac.setAutoActivationEnabled(true);
+        ac.setAutoCompleteSingleChoices(false);
         ac.setAutoActivationDelay(250);
         ac.setShowDescWindow(true);
         ac.install(editor);
@@ -201,6 +209,24 @@ final class ConsoleTab extends JPanel {
         s.ready.thenRun(() -> SwingUtilities.invokeLater(this::refillCompletions));
         updateConnectionStatus();
         updateTxButtons();
+    }
+
+    /** `별칭.` / `스키마.테이블.` 입력 시 현재 문장의 FROM/JOIN 을 보고 그 테이블의 컬럼을 제안한다. */
+    private List<Completion> aliasCompletions(DefaultCompletionProvider p, String entered) {
+        Session sess = session;
+        int dot = entered == null ? -1 : entered.lastIndexOf('.');
+        if (sess == null || dot <= 0) return null;
+        String text = editor.getText();
+        SqlSplitter.Range r = SqlSplitter.statementAt(text, editor.getCaretPosition());
+        String stmt = r == null ? text : r.text(text);
+        SqlAliases.Table t = SqlAliases.tableFor(entered.substring(0, dot), stmt, sess.completion, schema);
+        if (t == null) return null;
+        String qualifier = entered.substring(0, dot + 1), partial = entered.substring(dot + 1).toLowerCase(Locale.ROOT);
+        List<Completion> list = new ArrayList<>();
+        for (String col : t.columns())
+            if (col.toLowerCase(Locale.ROOT).startsWith(partial))
+                list.add(new BasicCompletion(p, qualifier + col, "column of " + t.schema() + "." + t.name()));
+        return list.isEmpty() ? null : list;
     }
 
     private void refillCompletions() {
@@ -380,6 +406,7 @@ final class ConsoleTab extends JPanel {
 
     private static Object normalize(Object o) {
         if (o == null) return null;
+        if (o instanceof java.math.BigDecimal d) return new PlainDecimal(d);
         if (o instanceof PGobject || o instanceof java.sql.Array || o instanceof SQLXML) return o.toString();
         if (o instanceof byte[] b) {
             StringBuilder sb = new StringBuilder("\\x");
@@ -387,6 +414,12 @@ final class ConsoleTab extends JPanel {
             return b.length > 64 ? sb + "… (" + b.length + " bytes)" : sb.toString();
         }
         return o;
+    }
+
+    /** numeric 0 등이 `0E-10` 처럼 지수 표기되지 않도록 화면·복사·내보내기 모두 일반 표기로 쓴다. */
+    static final class PlainDecimal extends java.math.BigDecimal {
+        PlainDecimal(java.math.BigDecimal d) { super(d.unscaledValue(), d.scale()); }
+        @Override public String toString() { return toPlainString(); }
     }
 
     private static String firstLine(String s) {
@@ -574,6 +607,19 @@ final class ConsoleTab extends JPanel {
     }
 
     void insertText(String s) { editor.replaceSelection(s); editor.requestFocusInWindow(); }
+
+    /** 에디터 끝에 새 문장으로 붙이고 그 위치로 커서를 옮긴다(AI 자동 입력용). */
+    void appendSql(String sql) {
+        String text = editor.getText();
+        String sep = text.isBlank() ? "" : text.endsWith("\n\n") ? "" : text.endsWith("\n") ? "\n" : "\n\n";
+        int start = text.length() + sep.length();
+        editor.append(sep + sql.strip() + "\n");
+        editor.setCaretPosition(start);
+        try {
+            Rectangle r = editor.modelToView2D(start).getBounds();
+            editor.scrollRectToVisible(r);
+        } catch (BadLocationException ignored) {}
+    }
 
     String text() { return editor.getText(); }
 

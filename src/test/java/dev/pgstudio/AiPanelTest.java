@@ -90,6 +90,19 @@ class AiPanelTest {
         assertTrue(s.contains("생략됨") && s.startsWith("s.table_0(a, b, c)"));
     }
 
+    @Test void schemaTextPutsMentionedSchemaFirstAndKeepsOthersAsNames() {
+        Map<String, Map<String, List<String>>> m = new java.util.TreeMap<>();
+        for (int t = 0; t < 500; t++) m.computeIfAbsent("aaa", k -> new java.util.TreeMap<>()).put("table_" + t, List.of("a", "b", "c"));
+        m.computeIfAbsent("wlt", k -> new java.util.TreeMap<>()).put("wallet", List.of("id", "balance"));
+        String s = ClaudeCli.schemaText(m, 2000, "wlt 스키마 지갑 잔액 보여줘");
+        assertTrue(s.startsWith("wlt.wallet(id, balance)"), s);
+        assertTrue(s.contains("Other tables (columns omitted): aaa.table_"), s);
+        assertTrue(s.length() < 2100);
+
+        String noHint = ClaudeCli.schemaText(m, 2000, null);
+        assertTrue(noHint.startsWith("aaa.table_0("), "힌트가 없으면 알파벳 순서");
+    }
+
     @Test void findsExecutableInGivenDirs() throws Exception {
         Path dir = Files.createTempDirectory("fakebin");
         assertNull(ClaudeCli.find(List.of(dir)));
@@ -114,6 +127,7 @@ class AiPanelTest {
         AiPanel panel = new AiPanel(new AiPanel.Host() {
             public Session currentSession() { return null; }
             public void insertIntoEditor(String sql) {}
+            public void appendToEditor(String sql) {}
             public String editorText() { return null; }
             public void replaceEditor(String sql) {}
             public void showResult(Session s, ResultData d, String label) {}
@@ -164,6 +178,7 @@ class AiPanelTest {
         AiPanel panel = new AiPanel(new AiPanel.Host() {
             public Session currentSession() { return null; }
             public void insertIntoEditor(String sql) {}
+            public void appendToEditor(String sql) {}
             public String editorText() { return null; }
             public void replaceEditor(String sql) {}
             public void showResult(Session s, ResultData d, String label) {}
