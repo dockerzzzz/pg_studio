@@ -69,12 +69,33 @@ class ErdTest {
         ErdModel m = new ErdModel();
         ErdModel.Table client = table(m, "client", List.of("customer_id"), "customer_id:bigint", "name:text");
         table(m, "invoices", List.of("id"), "id:bigint", "customer_id:bigint");
-        table(m, "client_profile", List.of("customer_id"), "customer_id:bigint", "bio:text");   // 자신의 PK 와 같은 이름 → 방향이 모호하므로 연결 안 함
+        table(m, "client_profile", List.of("customer_id"), "customer_id:bigint", "bio:text");   // 같은 PK 묶음 → 대표(client)와 1:1
         ErdInference.apply(m);
         ErdModel.Fk f = edge(m, "invoices", "customer_id");
         assertNotNull(f);
         assertEquals(client.oid, f.parent());
-        assertNull(edge(m, "client_profile", "customer_id"));
+        assertEquals(client.oid, edge(m, "client_profile", "customer_id").parent());
+        assertNull(edge(m, "client", "customer_id"), "대표 테이블 자신은 연결하지 않음");
+    }
+
+    @Test void sharedPkGroupLinksToMainTable() {
+        ErdModel m = new ErdModel();
+        ErdModel.Table list = table(m, "tb_pyo_quot_list", List.of("quot_id"), "quot_id:varchar(20)", "clt_id:varchar", "src_amt:numeric");
+        table(m, "tb_pyo_quot_ext", List.of("quot_id"), "quot_id:varchar(20)", "svc_key:varchar", "a:varchar", "b:varchar", "c:varchar");
+        table(m, "tb_pyo_rmt_list", List.of("rmt_id"), "rmt_id:varchar(50)", "quot_id:varchar(50)");
+        ErdInference.apply(m);
+        assertEquals(list.oid, edge(m, "tb_pyo_rmt_list", "quot_id").parent(), "컬럼이 더 많아도 _ext 는 대표가 아님");
+        assertEquals(list.oid, edge(m, "tb_pyo_quot_ext", "quot_id").parent());
+        assertTrue(edge(m, "tb_pyo_quot_ext", "quot_id").identifying());
+        assertNull(edge(m, "tb_pyo_quot_list", "quot_id"));
+    }
+
+    @Test void genericPkNamesAreNotGrouped() {
+        ErdModel m = new ErdModel();
+        table(m, "users", List.of("id"), "id:bigint");
+        table(m, "orders", List.of("id"), "id:bigint");
+        ErdInference.apply(m);
+        assertTrue(m.fks.isEmpty(), "PK 가 id 인 테이블끼리는 1:1 로 묶지 않음");
     }
 
     // ---- 배치 ----
